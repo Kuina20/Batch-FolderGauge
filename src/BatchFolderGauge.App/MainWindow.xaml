@@ -24,7 +24,7 @@
         </DockPanel>
         <Border Grid.Row="2" Background="#E8EFFC" BorderBrush="#D3DFF6" BorderThickness="1" CornerRadius="6" Padding="14,10" Margin="0,0,0,16">
             <TextBlock TextWrapping="Wrap" Foreground="#405A81"
-                       Text="统计文件逻辑大小，包含隐藏文件与子目录；跳过链接和联接点。SMB 使用 Windows 已有权限，无权限或断线结果会标为部分完成或失败。"/>
+                       Text="优先扫描深层路径，父目录复用本轮缓存。统计逻辑大小，包含隐藏文件与子目录，跳过链接。SMB 使用 Windows 已有权限；错误会标为部分完成或失败。"/>
         </Border>
         <DataGrid Grid.Row="3" x:Name="ResultsGrid" ItemsSource="{Binding Rows}"
                   SelectedItem="{Binding SelectedRow, Mode=TwoWay}" SelectionMode="Extended" SelectionUnit="FullRow">
@@ -37,6 +37,7 @@
                 <DataGridTextColumn Header="状态" Binding="{Binding StatusText}" Width="90"/>
                 <DataGridTextColumn Header="错误" Binding="{Binding ErrorCount}" Width="65"/>
                 <DataGridTextColumn Header="跳过" Binding="{Binding SkippedCount}" Width="65"/>
+                <DataGridTextColumn Header="复用" Binding="{Binding CacheHitCount}" Width="65"/>
             </DataGrid.Columns>
         </DataGrid>
         <GridSplitter Grid.Row="4" Height="6" HorizontalAlignment="Stretch" Background="Transparent" ResizeDirection="Rows"/>

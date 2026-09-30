@@ -26,9 +26,10 @@ public sealed class MainViewModel : ObservableObject
     public bool CanExport => IsEditable && Rows.Any(row => row.IsFinished);
     public bool CanRemove => IsEditable && SelectedRow is not null;
     public string Activity => activity;
-    public string BatchSummary => isRunning
+    public string BatchSummary => (isRunning
         ? $"已结束 {Rows.Count(row => row.IsFinished)} / {Rows.Count} 个文件夹" + (isCancelling ? " · 正在取消，等待系统 I/O 返回…" : " · 扫描中")
-        : $"共 {Rows.Count} 个文件夹 · 已结束 {Rows.Count(row => row.IsFinished)} 个";
+        : $"共 {Rows.Count} 个文件夹 · 已结束 {Rows.Count(row => row.IsFinished)} 个")
+        + $" · 缓存复用 {Rows.Sum(row => row.CacheHitCount)} 处";
     public FolderRow? SelectedRow
     {
         get => selectedRow;
@@ -93,7 +94,7 @@ public sealed class MainViewModel : ObservableObject
         int run = ++generation;
         cancellation = new CancellationTokenSource();
         foreach (var row in Rows) row.Update(ScanSnapshot.Queued(row.Path));
-        SetActivity("正在扫描；只读取文件元数据，不读取文件内容。");
+        SetActivity("优先扫描更深的路径，父目录复用本轮子目录缓存；只读取文件元数据。");
         Refresh();
         var progress = new Progress<ScanSnapshot>(snapshot =>
         {

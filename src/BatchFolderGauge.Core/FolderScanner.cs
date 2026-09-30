@@ -9,18 +9,22 @@ public sealed class FolderScanner(IFileSystemSource source)
     private static readonly TimeSpan UpdateInterval = TimeSpan.FromMilliseconds(200);
 
     // Synchronous by design: the coordinator owns a bounded set of background workers.
-    public ScanSnapshot Scan(string rootPath, IProgress<ScanSnapshot>? progress, CancellationToken cancellationToken)
+    public ScanSnapshot Scan(string rootPath, IProgress<ScanSnapshot>? progress, CancellationToken cancellationToken) =>
+        Scan(rootPath, progress, cancellationToken, null);
+
+    internal ScanSnapshot Scan(string rootPath, IProgress<ScanSnapshot>? progress,
+        CancellationToken cancellationToken, BatchScanCache? cache)
     {
         var clock = Stopwatch.StartNew();
         var errors = new List<ScanError>();
-        long bytes = 0, files = 0, errorCount = 0, skipped = 0;
+        long bytes = 0, files = 0, errorCount = 0, skipped = 0, cacheHits = 0;
         bool rootAccessible = false;
         string currentPath = rootPath;
         TimeSpan lastUpdate = TimeSpan.Zero;
 
         ScanSnapshot Snapshot(ScanStatus status) => new(rootPath, status,
             rootAccessible && status != ScanStatus.Failed ? bytes : null,
-            files, errorCount, skipped, clock.Elapsed, currentPath, errors.ToArray());
+            files, errorCount, skipped, clock.Elapsed, currentPath, errors.ToArray()) { CacheHitCount = cacheHits };
 
         void Report(bool force = false)
         {
@@ -64,6 +68,24 @@ public sealed class FolderScanner(IFileSystemSource source)
                 cancellationToken.ThrowIfCancellationRequested();
                 currentPath = directory;
                 Report();
+                if (directory != rootPath && cache is not null && cache.TryGet(directory, out var cached))
+                {
+                    try
+                    {
+                        // Compute all counters before committing, so overflow cannot merge half a subtree.
+                        long mergedBytes = checked(bytes + cached.TotalBytes!.Value);
+                        long mergedFiles = checked(files + cached.FileCount);
+                        long mergedErrors = checked(errorCount + cached.ErrorCount);
+                        long mergedSkipped = checked(skipped + cached.SkippedCount);
+                        bytes = mergedBytes; files = mergedFiles;
+                        errorCount = mergedErrors; skipped = mergedSkipped;
+                        errors.AddRange(cached.Errors.Take(MaxErrorDetails - errors.Count));
+                        cacheHits++;
+                    }
+                    catch (OverflowException ex) { AddError(directory, ex); }
+                    Report();
+                    continue;
+                }
                 try
                 {
                     using var entries = source.EnumerateDirectory(directory).GetEnumerator();

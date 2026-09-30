@@ -15,6 +15,8 @@ public sealed record ScanSnapshot(
     string CurrentPath,
     IReadOnlyList<ScanError> Errors)
 {
+    public long CacheHitCount { get; init; }
+
     public static ScanSnapshot Queued(string path) =>
         new(path, ScanStatus.Queued, null, 0, 0, 0, TimeSpan.Zero, path, Array.Empty<ScanError>());
 }
