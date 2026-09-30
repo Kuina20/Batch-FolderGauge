@@ -1,0 +1,75 @@
+# Batch FolderGauge
+
+C# / .NET 8 / WPF 中文 Windows 应用，批量统计本地和 SMB 文件夹的文件逻辑大小。
+
+## 运行
+
+使用 Windows x64 免安装运行包：完整解压 `BatchFolderGauge-windows-x64.zip`，双击 `BatchFolderGauge.exe`。运行包包含 .NET 运行时，不需要另外安装 .NET。请保留同目录下的 DLL 和其他运行文件，不要只复制 EXE。
+
+1. 点击 **选择文件夹…**，在 Windows 文件夹对话框中使用 Ctrl / Shift 多选；可以反复添加不同位置的文件夹。
+2. 或点击 **粘贴路径…**，每行一个绝对路径，例如：
+
+   ```text
+   C:\Data
+   Z:\Archive
+   \\server\share\Data
+   \\server\share\Archive
+   ```
+
+3. 点击 **开始统计**。最多同时扫描两个根文件夹，界面显示当前路径和已结束文件夹数量。
+4. 点击列标题按大小、精确字节数、文件数或耗时排序。Ctrl / Shift 可选择多行移除。选择一行查看错误详情。
+5. 点击 **导出 CSV** 保存本轮结果。CSV 为带 BOM 的 UTF-8，可用 Excel 打开；逻辑字节数列保留整数值。
+
+扫描期间列表锁定。点击 **取消** 后保留已扫描结果；网络 I/O 正在阻塞时，需要等待 Windows 返回。取消结束后才可重新扫描。扫描期间关闭窗口会先取消并等待当前工作退出。
+
+## SMB 共享
+
+支持 `\\服务器\共享\文件夹` UNC 路径及当前用户的映射盘。采用 Windows 文件系统访问，不需要安装 SMB 客户端库。
+
+- 先在 Windows 文件资源管理器中访问目标共享并完成登录，再打开本应用。
+- 应用使用当前 Windows 用户的已有权限，不输入、保存或管理账号密码；无需以管理员身份运行。提升权限可能使原用户的映射盘不可见。
+- UNC 需要包含共享名，`\\server` 不是可以扫描的文件夹根路径。
+- 粘贴路径时只进行字符串格式检查，不连接服务器。访问检查和枚举在后台执行。
+- 断线、无权限、目录消失等错误不会悄悄忽略：已读取的结果保留，其他已发现且可访问的子目录继续扫描。连接恢复后再次点击 **开始统计**，全量重新扫描。
+- 长路径由 .NET 8 和应用的 long-path-aware 清单支持；实际路径限制仍由 Windows 和共享服务器决定。
+
+## 统计口径与状态
+
+统计每个普通文件的逻辑长度之和，不读取文件内容。包含隐藏、系统文件及普通子目录；大小单位为 B、KiB、MiB、GiB、TiB（1024 进制）。不统计目录项自身、备用数据流或实际分配空间。硬链接按遇到的文件条目分别计数。
+
+符号链接、目录联接点等重解析点一律跳过，以防循环及越界；所选根文件夹本身若为重解析点也跳过。若需要统计链接目标，请直接添加目标路径。
+
+| 状态 | 含义 |
+| --- | --- |
+| 待扫描 | 尚未开始，大小显示 `—` |
+| 扫描中 | 显示当前累加值；尚未成功枚举根目录时显示 `—` |
+| 完成 | 枚举完成，未遇到错误或跳过项；空文件夹为 `0 B` |
+| 部分完成 | 存在错误或跳过项，大小仅代表已计入文件 |
+| 失败 | 无法访问或开始枚举根文件夹，大小显示 `—` |
+| 已取消 | 保留已计入文件的大小；尚未开始访问时显示 `—` |
+
+每个根文件夹保留前 100 条错误详情，同时累计全部错误数量。扫描中发生文件修改时，结果代表遍历期间观察到的长度，不保证同一时刻的快照。父子文件夹可同时添加，各自独立统计，不显示可能重复计数的总和。路径按 Windows 不区分大小写规则去重；UNC 与映射盘等指向同一位置的不同别名不会合并。
+
+## 源码构建与发布
+
+在 Windows 安装 .NET 8 SDK，打开 `BatchFolderGauge.sln`，或执行：
+
+```powershell
+dotnet build BatchFolderGauge.sln -c Release
+dotnet test tests/BatchFolderGauge.Tests/BatchFolderGauge.Tests.csproj -c Release
+dotnet run --project src/BatchFolderGauge.App/BatchFolderGauge.App.csproj
+```
+
+生成 Windows x64 自包含运行包：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/publish-win-x64.ps1
+```
+
+输出目录为 `artifacts/windows-x64`，压缩包为 `artifacts/BatchFolderGauge-windows-x64.zip`。也可使用 Visual Studio 中的 `Windows-x64` 发布配置；该配置发布文件夹，压缩与说明文件复制由脚本完成。
+
+核心和自动测试目标为 `net8.0`，可跨平台运行；应用目标为 `net8.0-windows`，只能在 Windows 运行。项目没有第三方运行时依赖，测试使用 xUnit。
+
+## 验证记录
+
+当前开发环境为 macOS arm64 / .NET SDK 8.0.421。构建、测试及发布结果见 [验证记录与 Windows 验收清单](docs/WINDOWS-ACCEPTANCE.md)。真实 Windows WPF 界面和 SMB 共享尚需按清单验收；模拟网络错误测试不能替代真实 SMB 测试。

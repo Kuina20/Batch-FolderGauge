@@ -1,0 +1,61 @@
+# 验证记录与 Windows 验收清单
+
+## 开发环境验证
+
+日期：2026-09-30（Asia/Singapore）。环境：macOS arm64，.NET SDK 8.0.421，运行时 8.0.27。
+
+| 检查 | 结果 |
+| --- | --- |
+| 核心、WPF 和测试项目构建 | Release 通过，0 警告、0 错误；WPF XAML 已编译 |
+| 核心自动测试 | Release 通过 39 项，失败 0，跳过 0；结果保存在 `artifacts/test-results/core-tests.trx` |
+| Windows x64 自包含发布与压缩包 | 发布成功；包含 .NET / Windows Desktop Runtime 8.0.27；压缩包为 `artifacts/BatchFolderGauge-windows-x64.zip` |
+| Windows WPF 运行和视觉验收 | 未执行：当前为 macOS |
+| 真实 SMB / UNC / 映射盘验收 | 未执行：未提供 Windows 与 SMB 测试共享 |
+
+自动测试覆盖真实本地元数据读取，以及通过可替换枚举接口模拟空目录、嵌套和大文件、隐藏/系统文件、根目录失败、子目录拒绝访问、枚举中断、错误详情上限、重解析点循环、取消、阻塞 I/O 生命周期、两工作线程上限、路径规范化、CSV 转义和编码。
+
+构建使用本机 NuGet 缓存与单个 MSBuild 节点；测试运行器需要本机通信 socket，因此测试在允许该操作的环境下执行。发布包为交叉编译产物，成功发布不等同于已完成 Windows 运行验收。
+
+## Windows 本地验收
+
+在 Windows x64 解压完整运行包并运行 EXE，记录 Windows 版本和包版本。以下项目尚未执行，不应视为已通过。
+
+创建已知大小的测试数据（PowerShell）：
+
+```powershell
+$fixtureRoot = Join-Path $env:TEMP ("BfgAcceptance-" + [guid]::NewGuid().ToString("N"))
+New-Item -ItemType Directory -Path "$fixtureRoot\Main\Nested", "$fixtureRoot\Empty" -Force | Out-Null
+[IO.File]::WriteAllBytes("$fixtureRoot\Main\a.bin", [byte[]]::new(10))
+[IO.File]::WriteAllBytes("$fixtureRoot\Main\Nested\b.bin", [byte[]]::new(1024))
+[IO.File]::WriteAllBytes("$fixtureRoot\Main\hidden.bin", [byte[]]::new(7))
+[IO.File]::SetAttributes("$fixtureRoot\Main\hidden.bin", [IO.FileAttributes]::Hidden)
+Write-Host $fixtureRoot
+```
+
+- [ ] 多选 `Main` 和 `Empty`：分别得到 **1041 字节 / 3 文件**、**0 字节 / 0 文件**，状态为完成。
+- [ ] 再添加 `Main\Nested`：独立得到 **1024 字节 / 1 文件**；大小排序按数值排列。
+- [ ] 以不同大小写、尾部斜线、双引号重复粘贴 `Main`，不产生重复行。
+- [ ] 添加不存在的路径：添加阶段不探测，扫描后失败，大小显示 `—`。
+- [ ] 添加深层目录、中文和逗号目录名、超过 260 字符的路径，核对结果和 CSV。
+- [ ] 添加指向父目录的符号链接或联接点：扫描结束，无循环，显示跳过项和部分完成。仅在测试目录内创建链接。
+- [ ] 大量小文件扫描期间移动、缩放窗口，切换选中行，界面可响应；列表编辑和重复启动不可用。
+- [ ] 点击取消：部分结果保留，旧工作退出前不可开始新一轮。重新扫描后旧结果重置。
+- [ ] 扫描期间关闭窗口：显示取消状态，工作结束后退出。
+- [ ] CSV 用 Excel 打开，中文正确、路径和错误摘要不串列、未知大小字节列为空；部分完成和取消状态可导出。
+- [ ] 以 100%、125%、150% 显示缩放检查表格、按钮、详情区和键盘操作。
+
+## 真实 SMB 验收
+
+使用专门的测试共享。记录服务器系统（Windows Server 或 Samba/NAS）、SMB 协议版本、客户端 Windows 版本、连接形式和测试结果。
+
+- [ ] 用资源管理器登录共享，将上述数据复制到共享目录；直接添加 UNC 路径，结果与本地一致。
+- [ ] 映射共享到盘符，重复测试；应用以相同用户普通权限运行。
+- [ ] 同批包含本地、UNC、映射盘和不同服务器路径，逐行完成；最多两个根扫描同时运行。
+- [ ] 测试账号可访问根目录，但无权访问一个子目录：该行部分完成，其他可访问子目录正常计入，错误详情含路径。
+- [ ] 未授权共享、无效共享名称或离线服务器：该行失败，其他根文件夹继续处理。
+- [ ] 在大型共享扫描过程中断开测试客户端网络：界面仍可响应；系统返回错误后，显示部分完成或失败，保留已观察结果。
+- [ ] 网络阻塞期间点击取消：显示正在取消，不能重复启动；系统 I/O 返回后全部剩余根标为已取消。
+- [ ] 恢复连接后重新统计：重新枚举并得到完整结果。
+- [ ] 验证服务端支持的长路径和中文路径；服务端不支持时显示明确错误。
+
+SMB 调用耗时和取消延迟由 Windows 网络栈决定。程序不强行终止后台线程，不承诺固定的请求超时。
