@@ -4,10 +4,11 @@ namespace BatchFolderGauge.App;
 
 public sealed class FolderRow(string path) : ObservableObject
 {
+    private SizeUnit sizeUnit;
     public ScanSnapshot Snapshot { get; private set; } = ScanSnapshot.Queued(path);
     public string Path => Snapshot.RootPath;
     public long? TotalBytes => Snapshot.TotalBytes;
-    public string SizeText => ResultFormatting.Size(TotalBytes);
+    public string SizeText => ResultFormatting.Size(TotalBytes, sizeUnit);
     public string BytesText => TotalBytes?.ToString("N0") ?? "—";
     public long FileCount => Snapshot.FileCount;
     public long ErrorCount => Snapshot.ErrorCount;
@@ -29,6 +30,13 @@ public sealed class FolderRow(string path) : ObservableObject
             return $"{Path}\n状态：{StatusText}　文件数：{FileCount:N0}　耗时：{ElapsedText}　缓存复用：{CacheHitCount} 个子树\n" +
                 (string.IsNullOrWhiteSpace(errors) ? "无错误或跳过记录。" : errors.TrimStart());
         }
+    }
+
+    public void SetSizeUnit(SizeUnit value)
+    {
+        if (sizeUnit == value) return;
+        sizeUnit = value;
+        Notify(nameof(SizeText));
     }
 
     public void Update(ScanSnapshot snapshot)

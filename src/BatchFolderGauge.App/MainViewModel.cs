@@ -12,6 +12,7 @@ public sealed class MainViewModel : ObservableObject
     private FolderRow? selectedRow;
     private bool isRunning, isExporting, isCancelling;
     private int generation;
+    private SizeUnit selectedSizeUnit;
     private string activity = "添加文件夹后，点击“开始统计”。";
 
     public ObservableCollection<FolderRow> Rows { get; } = [];
@@ -24,6 +25,20 @@ public sealed class MainViewModel : ObservableObject
     public bool IsExporting => isExporting;
     public bool IsEditable => !isRunning && !isExporting;
     public bool CanExport => IsEditable && Rows.Any(row => row.IsFinished);
+    public bool CanChangeSizeUnit => IsEditable && Rows.Count > 0 && Rows.All(row => row.IsFinished);
+    public IReadOnlyList<SizeUnit> SizeUnits { get; } = Enum.GetValues<SizeUnit>();
+    public SizeUnit SelectedSizeUnit
+    {
+        get => selectedSizeUnit;
+        set
+        {
+            if (!CanChangeSizeUnit || selectedSizeUnit == value) return;
+            if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            selectedSizeUnit = value;
+            foreach (var row in Rows) row.SetSizeUnit(value);
+            Notify();
+        }
+    }
     public bool CanRemove => IsEditable && SelectedRow is not null;
     public string Activity => activity;
     public string BatchSummary => (isRunning
@@ -93,7 +108,11 @@ public sealed class MainViewModel : ObservableObject
         isCancelling = false;
         int run = ++generation;
         cancellation = new CancellationTokenSource();
-        foreach (var row in Rows) row.Update(ScanSnapshot.Queued(row.Path));
+        foreach (var row in Rows)
+        {
+            row.SetSizeUnit(SizeUnit.Automatic);
+            row.Update(ScanSnapshot.Queued(row.Path));
+        }
         SetActivity("优先扫描更深的路径，父目录复用本轮子目录缓存；只读取文件元数据。");
         Refresh();
         var progress = new Progress<ScanSnapshot>(snapshot =>
@@ -110,7 +129,7 @@ public sealed class MainViewModel : ObservableObject
         {
             var results = await coordinator.ScanAsync(Rows.Select(row => row.Path).ToArray(), progress, cancellation.Token);
             foreach (var result in results) rowsByPath[result.RootPath].Update(result);
-            SetActivity(isCancelling ? "扫描已取消；已有结果保留，可导出或重新统计。" : "本轮统计已结束；选择一行查看详情，或导出 CSV。");
+            SetActivity(isCancelling ? "扫描已取消；已有结果保留，可切换大小单位、导出或重新统计。" : "本轮统计已结束；可统一切换大小单位，选择一行查看详情，或导出 CSV。");
         }
         catch (Exception ex)
         {
@@ -126,6 +145,7 @@ public sealed class MainViewModel : ObservableObject
         {
             cancellation.Dispose(); cancellation = null;
             isRunning = false; isCancelling = false;
+            foreach (var row in Rows) row.SetSizeUnit(selectedSizeUnit);
             Refresh();
         }
     }
@@ -149,13 +169,14 @@ public sealed class MainViewModel : ObservableObject
     private async Task ExportCoreAsync(string path)
     {
         var snapshots = Rows.Select(row => row.Snapshot).ToArray();
+        var sizeUnit = selectedSizeUnit;
         isExporting = true; Refresh();
         try
         {
             await Task.Run(() =>
             {
                 using var stream = File.Create(path);
-                CsvExporter.Write(stream, snapshots);
+                CsvExporter.Write(stream, snapshots, sizeUnit);
             });
             SetActivity($"已导出：{path}");
         }
@@ -166,6 +187,7 @@ public sealed class MainViewModel : ObservableObject
     private void Refresh()
     {
         Notify(nameof(IsRunning)); Notify(nameof(IsExporting)); Notify(nameof(IsEditable)); Notify(nameof(CanExport));
+        Notify(nameof(CanChangeSizeUnit));
         Notify(nameof(CanRemove)); Notify(nameof(BatchSummary)); Notify(nameof(SelectedDetails));
         StartCommand.Refresh(); CancelCommand.Refresh(); ClearCommand.Refresh();
     }

@@ -1,6 +1,7 @@
 namespace BatchFolderGauge.Core;
 
 public enum ScanStatus { Queued, Scanning, Completed, Partial, Failed, Cancelled }
+public enum SizeUnit { Automatic, B, KiB, MiB, GiB, TiB }
 
 public sealed record ScanError(string Path, string Message);
 
@@ -34,13 +35,17 @@ public static class ResultFormatting
         _ => throw new ArgumentOutOfRangeException(nameof(status))
     };
 
-    public static string Size(long? bytes)
+    public static string Size(long? bytes, SizeUnit sizeUnit = SizeUnit.Automatic)
     {
+        if (!Enum.IsDefined(sizeUnit)) throw new ArgumentOutOfRangeException(nameof(sizeUnit));
         if (bytes is null) return "—";
         string[] units = ["B", "KiB", "MiB", "GiB", "TiB"];
         double value = bytes.Value;
-        int unit = 0;
-        while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        int unit = sizeUnit == SizeUnit.Automatic ? 0 : (int)sizeUnit - 1;
+        if (sizeUnit == SizeUnit.Automatic)
+            while (value >= 1024 && unit < units.Length - 1) { value /= 1024; unit++; }
+        else
+            value /= Math.Pow(1024, unit);
         return unit == 0 ? $"{bytes.Value} B" : $"{value:0.##} {units[unit]}";
     }
 }

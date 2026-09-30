@@ -5,7 +5,7 @@ namespace BatchFolderGauge.Core;
 
 public static class CsvExporter
 {
-    public static void Write(Stream destination, IEnumerable<ScanSnapshot> results)
+    public static void Write(Stream destination, IEnumerable<ScanSnapshot> results, SizeUnit sizeUnit = SizeUnit.Automatic)
     {
         using var writer = new StreamWriter(destination, new UTF8Encoding(true), leaveOpen: true);
         writer.NewLine = "\r\n";
@@ -16,7 +16,7 @@ public static class CsvExporter
             if (result.ErrorCount > result.Errors.Count)
                 summary += $"\n仅显示前 {result.Errors.Count} 条，共 {result.ErrorCount} 条错误。";
             string[] fields = [result.RootPath, result.TotalBytes?.ToString(CultureInfo.InvariantCulture) ?? "",
-                ResultFormatting.Size(result.TotalBytes), result.FileCount.ToString(CultureInfo.InvariantCulture),
+                ResultFormatting.Size(result.TotalBytes, sizeUnit), result.FileCount.ToString(CultureInfo.InvariantCulture),
                 ResultFormatting.Status(result.Status), result.ErrorCount.ToString(CultureInfo.InvariantCulture),
                 result.SkippedCount.ToString(CultureInfo.InvariantCulture),
                 result.Elapsed.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture), summary,
