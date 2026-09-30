@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
 
 namespace BatchFolderGauge.App;
@@ -10,6 +11,29 @@ public partial class MainWindow : Window
     private bool closePending;
 
     public MainWindow() { InitializeComponent(); DataContext = viewModel; }
+
+    private void SortResults(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        ListSortDirection? direction = e.Column.SortDirection switch
+        {
+            null => ListSortDirection.Ascending,
+            ListSortDirection.Ascending => ListSortDirection.Descending,
+            _ => null
+        };
+
+        using (ResultsGrid.Items.DeferRefresh())
+        {
+            // Clearing the view's sort restores the source collection's insertion order.
+            ResultsGrid.Items.SortDescriptions.Clear();
+            foreach (var column in ResultsGrid.Columns) column.SortDirection = null;
+            if (direction is { } sortDirection)
+            {
+                ResultsGrid.Items.SortDescriptions.Add(new SortDescription(e.Column.SortMemberPath, sortDirection));
+                e.Column.SortDirection = sortDirection;
+            }
+        }
+    }
 
     private void AddFolders(object sender, RoutedEventArgs e)
     {

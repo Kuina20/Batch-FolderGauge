@@ -27,7 +27,8 @@
                        Text="优先扫描深层路径，父目录复用本轮缓存。统计逻辑大小，包含隐藏文件与子目录，跳过链接。SMB 使用 Windows 已有权限；错误会标为部分完成或失败。"/>
         </Border>
         <DataGrid Grid.Row="3" x:Name="ResultsGrid" ItemsSource="{Binding Rows}"
-                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}" SelectionMode="Extended" SelectionUnit="FullRow">
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}" SelectionMode="Extended" SelectionUnit="FullRow"
+                  Sorting="SortResults">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="文件夹路径" Binding="{Binding Path}" Width="*" MinWidth="220" SortMemberPath="Path"/>
                 <DataGridTextColumn Header="大小" Binding="{Binding SizeText}" Width="105" SortMemberPath="TotalBytes"/>

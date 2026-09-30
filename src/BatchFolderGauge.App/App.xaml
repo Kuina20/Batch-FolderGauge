@@ -40,11 +40,51 @@
             <Setter Property="AlternatingRowBackground" Value="#F8FAFD" />
         </Style>
         <Style TargetType="DataGridColumnHeader">
+            <Style.Resources>
+                <Style x:Key="HeaderGripper" TargetType="Thumb">
+                    <Setter Property="Width" Value="8" />
+                    <Setter Property="Cursor" Value="SizeWE" />
+                    <Setter Property="Template">
+                        <Setter.Value><ControlTemplate TargetType="Thumb">
+                            <Border Background="Transparent" />
+                        </ControlTemplate></Setter.Value>
+                    </Setter>
+                </Style>
+            </Style.Resources>
             <Setter Property="Padding" Value="10,12" />
             <Setter Property="Background" Value="#ECF1F8" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
             <Setter Property="BorderBrush" Value="#DDE4EF" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridColumnHeader">
+                        <Grid>
+                            <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ContentPresenter RecognizesAccessKey="True" VerticalAlignment="Center" />
+                                    <Path x:Name="SortArrow" Width="8" Height="5" Margin="6,0,0,0"
+                                          Stretch="Fill" Fill="{TemplateBinding Foreground}" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Border>
+                            <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Style="{StaticResource HeaderGripper}" />
+                            <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Style="{StaticResource HeaderGripper}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="SortDirection" Value="Ascending">
+                                <Setter TargetName="SortArrow" Property="Data" Value="M 0,5 L 4,0 L 8,5 Z" />
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="SortDirection" Value="Descending">
+                                <Setter TargetName="SortArrow" Property="Data" Value="M 0,0 L 4,5 L 8,0 Z" />
+                                <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style TargetType="DataGridCell">
             <Setter Property="Padding" Value="10,0" />
